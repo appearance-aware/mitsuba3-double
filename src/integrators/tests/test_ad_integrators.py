@@ -40,6 +40,11 @@ output_dir = find_resource('resources/data/tests/integrators')
 
 from mitsuba.scalar_rgb import ScalarTransform4f as T
 
+
+##
+## TODO: Remove `parallel=False`
+##
+
 class ConfigBase:
     """
     Base class to configure test scene and define the parameter to update
@@ -88,7 +93,7 @@ class ConfigBase:
 
         @fresolver_append_path
         def create_scene():
-            return mi.load_dict(self.scene_dict)
+            return mi.load_dict(self.scene_dict, parallel=False)
         self.scene = create_scene()
         self.params = mi.traverse(self.scene)
 
@@ -784,7 +789,7 @@ def test02_rendering_forward(variants_all_ad_rgb, integrator_name, config):
     config.initialize()
 
     config.integrator_dict['type'] = integrator_name
-    integrator = mi.load_dict(config.integrator_dict)
+    integrator = mi.load_dict(config.integrator_dict, parallel=False)
     if 'projective' in integrator_name:
         integrator.proj_seed_spp = 2048 * 2
 
@@ -832,7 +837,7 @@ def test03_rendering_backward(variants_all_ad_rgb, integrator_name, config):
 
     config.integrator_dict['type'] = integrator_name
 
-    integrator = mi.load_dict(config.integrator_dict)
+    integrator = mi.load_dict(config.integrator_dict, parallel=False)
     if 'projective' in integrator_name:
         integrator.proj_seed_spp = 2048 * 2
 
@@ -872,7 +877,7 @@ def test04_render_custom_op(variants_all_ad_rgb):
     integrator = mi.load_dict({
         'type': 'prb',
         'max_depth': config.integrator_dict['max_depth']
-    })
+    }, parallel=False)
 
     filename = join(output_dir, f"test_{config.name}_image_primal_ref.exr")
     image_primal_ref = mi.TensorXf(mi.Bitmap(filename))
@@ -969,7 +974,7 @@ if __name__ == "__main__":
         integrator_path = mi.load_dict({
             'type': 'path',
             'max_depth': config.integrator_dict['max_depth']
-        })
+        }, parallel=False)
 
         # Primal render
         image_ref = integrator_path.render(config.scene, seed=0, spp=args.spp)
