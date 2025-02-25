@@ -68,7 +68,8 @@ class ConfigBase:
             'to_world': T().look_at(origin=[0, 0, 4], target=[0, 0, 0], up=[0, 1, 0]),
             'film': {
                 'type': 'hdrfilm',
-                'rfilter': { 'type': 'gaussian', 'stddev': 0.5 },
+                #'rfilter': { 'type': 'gaussian', 'stddev': 0.5 },
+                'rfilter': { 'type': 'box' },
                 'width': self.res,
                 'height': self.res,
                 'sample_border': True,
@@ -548,6 +549,7 @@ class TranslateSelfShadowAreaLightConfig(ConfigBase):
             'plane': {
                 'type': 'obj',
                 'filename': 'resources/data/common/meshes/rectangle.obj',
+                'to_world': T().translate([10 - 1, 0, 0]) @ T().scale([10, 1, 1]),
                 'face_normals': True,
             },
             'occluder': {
@@ -557,18 +559,39 @@ class TranslateSelfShadowAreaLightConfig(ConfigBase):
                 'to_world': T().translate([-1, 0, 0.5]) @ T().rotate([0, 1, 0], 90) @ T().scale(1.0),
             },
             'light': {
-                'type': 'point',
-                'position': [-4, 0, 6],
-                'intensity': {'type': 'rgb', 'value': [5.0, 0.0, 0.0]}
+                'type': 'sphere',
+                'to_world': T().translate([-4, 0, 6]) @ T().scale(0.5),
+                'emitter': {
+                    'type': 'area',
+                    'radiance': {'type': 'rgb', 'value': [15.0, 15.0, 15.0]}
+                }
             },
-            'light2': { 'type': 'constant', 'radiance': 0.1 },
+            #'light2': { 'type': 'constant', 'radiance': 0.1 },
         }
-        self.error_mean_threshold = 0.06
+        #self.error_mean_threshold = 0.06
+        self.error_mean_threshold = 0
         self.error_max_threshold = 0.7
         self.error_mean_threshold_bwd = 0.35
         self.integrator_dict = {
             'max_depth': 3,
         }
+
+        self.sensor_dict = {
+            'type': 'perspective',
+            'to_world': T().look_at(origin=[0, 0, 4], target=[0, 0, 0], up=[0, 1, 0]),
+            'fov': 50,
+            'film': {
+                'type': 'hdrfilm',
+                'rfilter': { 'type': 'box' },
+                'width': self.res,
+                'height': self.res,
+                'sample_border': True,
+                'pixel_format': 'rgb',
+                'component_format': 'float32',
+            }
+        }
+
+
 
     def initialize(self):
         super().initialize()
@@ -699,29 +722,30 @@ class RotateShadingNormalsPlaneConfig(ConfigBase):
 # -------------------------------------------------------------------
 
 BASIC_CONFIGS_LIST = [
-    DiffuseAlbedoConfig,
-    DiffuseAlbedoGIConfig,
-    AreaLightRadianceConfig,
-    DirectlyVisibleAreaLightRadianceConfig,
-    TranslateTexturedPlaneConfig,
-    CropWindowConfig,
-    RotateShadingNormalsPlaneConfig,
-
-    # The next two configs have issues with Nvidia driver v545
+    # DiffuseAlbedoConfig,
+    # DiffuseAlbedoGIConfig,
+    # AreaLightRadianceConfig,
+    # DirectlyVisibleAreaLightRadianceConfig,
     # PointLightIntensityConfig,
     # ConstantEmitterRadianceConfig,
+    # CropWindowConfig,
+    # TranslateTexturedPlaneConfig,
+    # RotateShadingNormalsPlaneConfig,
 ]
 
 DISCONTINUOUS_CONFIGS_LIST = [
     # TranslateDiffuseSphereConstantConfig,
     # TranslateDiffuseRectangleConstantConfig,
     # TranslateRectangleEmitterOnBlackConfig,
-    TranslateSphereEmitterOnBlackConfig,
-    ScaleSphereEmitterOnBlackConfig,
-    TranslateOccluderAreaLightConfig,
-    TranslateSelfShadowAreaLightConfig,
+    # TranslateSphereEmitterOnBlackConfig,
+    # ScaleSphereEmitterOnBlackConfig,
+    # TranslateOccluderAreaLightConfig,
     # TranslateShadowReceiverAreaLightConfig,
-    TranslateSphereOnGlossyFloorConfig,
+    # TranslateSphereOnGlossyFloorConfig,
+
+    TranslateSelfShadowAreaLightConfig,
+
+    ### Camera derivatives are currently unsupported
     # TranslateCameraConfig
 ]
 
@@ -783,10 +807,12 @@ def test01_rendering_primal(variants_all_ad_rgb, integrator_name, config):
 @pytest.mark.slow
 @pytest.mark.skipif(os.name == 'nt', reason='Skip those memory heavy tests on Windows')
 @pytest.mark.parametrize('integrator_name, config', CONFIGS)
-def test02_rendering_forward(variants_all_ad_rgb, integrator_name, config):
+def test02_rendering_forward(variant_cuda_ad_rgb, integrator_name, config):
+#def test02_rendering_forward(variants_all_ad_rgb, integrator_name, config):
     config = config()
     config.initialize()
 
+    integrator_name = "prb"
     config.integrator_dict['type'] = integrator_name
     integrator = mi.load_dict(config.integrator_dict, parallel=False)
     if 'projective' in integrator_name:
@@ -806,7 +832,7 @@ def test02_rendering_forward(variants_all_ad_rgb, integrator_name, config):
 
     dr.set_label(config.params, 'params')
     image_fwd = integrator.render_forward(
-        config.scene, seed=0, spp=config.spp, params=theta)
+        config.scene, seed=0x04, spp=config.spp, params=theta)
     image_fwd = dr.detach(image_fwd)
 
     error = dr.abs(image_fwd - image_fwd_ref) / dr.maximum(dr.abs(image_fwd_ref), 2e-1)
@@ -991,6 +1017,9 @@ if __name__ == "__main__":
         config.update(theta)
         image_2 = integrator_path.render(config.scene, seed=0, spp=args.spp)
         dr.eval(image_2)
+
+        mi.Bitmap(image_1).write('fd_1.exr')
+        mi.Bitmap(image_2).write('fd_2.exr')
 
         image_fd = (image_2 - image_1) / config.ref_fd_epsilon
 

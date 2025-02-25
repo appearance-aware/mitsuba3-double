@@ -93,6 +93,8 @@ class PRBIntegrator(RBIntegrator):
         η = mi.Float(1)                               # Index of refraction
         active = mi.Bool(active)                      # Active SIMD lanes
 
+        prev_si_p = mi.Point3f(ray.o)
+
         # Variables caching information from the previous bounce
         prev_si         = dr.zeros(mi.SurfaceInteraction3f)
         prev_bsdf_pdf   = mi.Float(1.0)
@@ -155,7 +157,12 @@ class PRBIntegrator(RBIntegrator):
 
                 # Evaluate BSDF * cos(theta) differentiably
                 wo = si.to_local(ds.d)
+
+                old_wi = si.wi
+                si.wi = si.to_local(dr.normalize(prev_si_p - si.p))
                 bsdf_value_em, bsdf_pdf_em = bsdf.eval_pdf(bsdf_ctx, si, wo, active_em)
+                si.wi = old_wi
+
                 mis_em = dr.select(ds.delta, 1, mis_weight(ds.pdf, bsdf_pdf_em))
                 Lr_dir = β * mis_em * bsdf_value_em * em_weight
 
@@ -211,6 +218,11 @@ class PRBIntegrator(RBIntegrator):
                     # Recompute 'wo' to propagate derivatives to cosine term
                     wo = si.to_local(ray.d)
 
+                    si.wi = si.to_local(dr.normalize(prev_si_p - si.p))
+                    with dr.suspend_grad():
+                        si_next = scene.ray_intersect(ray, active)
+                    wo = si.to_local(dr.normalize(si_next.p - si.p))
+
                     # Re-evaluate BSDF * cos(theta) differentiably
                     bsdf_val = bsdf.eval(bsdf_ctx, si, wo, active_next)
 
@@ -247,6 +259,8 @@ class PRBIntegrator(RBIntegrator):
 
             depth[si.is_valid()] += 1
             active = active_next
+
+            prev_si_p = si.p
 
         return (
             L if primal else δL, # Radiance/differential radiance

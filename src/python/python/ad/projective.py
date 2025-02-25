@@ -560,6 +560,8 @@ class ProjectiveDetail():
                 scene, sensor, ss, parent.max_depth, sampler, preprocess, active)
             active &= active_i
 
+            #active &= (sensor_depth < 3)
+
             # Estimate the radiance difference
             fE, active_e = parent.sample_radiance_difference(
                 scene, ss, sensor_depth - 1, sampler, active)
