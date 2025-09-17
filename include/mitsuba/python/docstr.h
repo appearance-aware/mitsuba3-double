@@ -2368,7 +2368,9 @@ interpolated value of the PDF for ``x`` given ``y`` and ``z.``
 Additionally, it allows you to sample from the distribution
 P(x|Y=y,Z=z) for a given ``y`` and ``z.``
 
-It assumes every conditioned PDF has the same size.
+It assumes every conditioned PDF has the same size. If the user
+requests a method that needs the integral, it will schedule its
+computation.
 
 This distribution can be used in the context of spectral rendering,
 where each wavelength conditions the underlying distribution.)doc";
@@ -2386,15 +2388,23 @@ Parameter ``pdf``:
 
 Parameter ``nodes_cond``:
     Arrays containing points where each conditional dimension is
-    evaluated
-
-Parameter ``enable_sampling``:
-    Enable sampling of the distribution
-
-Parameter ``nearest``:
-    If true, the distribution will return the nearest neighbor)doc";
+    evaluated)doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_ConditionalIrregular1D_3 =
+R"doc(Construct a conditional irregular 1D distribution
+
+Parameter ``nodes``:
+    Points where the leading dimension N is defined
+
+Parameter ``pdf``:
+    Tensor containing the values of the PDF of shape [D1, D2, ..., Dn,
+    N]
+
+Parameter ``nodes_cond``:
+    Arrays containing points where each conditional dimension is
+    evaluated)doc";
+
+static const char *__doc_mitsuba_ConditionalIrregular1D_ConditionalIrregular1D_4 =
 R"doc(Construct a conditional irregular 1D distribution
 
 Parameter ``nodes``:
@@ -2413,19 +2423,19 @@ Parameter ``nodes_cond``:
     Arrays containing points where the conditional is evaluated
 
 Parameter ``sizes_cond``:
-    Array with the sizes of the conditional nodes arrays
+    Array with the sizes of the conditional nodes arrays)doc";
 
-Parameter ``enable_sampling``:
-    Enable sampling of the distribution
+static const char *__doc_mitsuba_ConditionalIrregular1D_cdf_array = R"doc(Return the CDF)doc";
 
-Parameter ``nearest``:
-    If true, the distribution will return the nearest neighbor)doc";
+static const char *__doc_mitsuba_ConditionalIrregular1D_cdf_array_2 = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_compute_cdf = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_compute_cdf_scalar = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_empty = R"doc(Is the distribution object empty/uninitialized?)doc";
+
+static const char *__doc_mitsuba_ConditionalIrregular1D_ensure_cdf_computed = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_eval_pdf =
 R"doc(Evaluate the unnormalized probability density function (PDF) at
@@ -2469,6 +2479,10 @@ Parameter ``cond``:
 Returns:
     The integral of the distribution)doc";
 
+static const char *__doc_mitsuba_ConditionalIrregular1D_integral_array = R"doc(Return the integral array)doc";
+
+static const char *__doc_mitsuba_ConditionalIrregular1D_integral_array_2 = R"doc()doc";
+
 static const char *__doc_mitsuba_ConditionalIrregular1D_lookup = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_lookup_fill = R"doc()doc";
@@ -2477,13 +2491,9 @@ static const char *__doc_mitsuba_ConditionalIrregular1D_lookup_sample = R"doc()d
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_m_cdf = R"doc()doc";
 
-static const char *__doc_mitsuba_ConditionalIrregular1D_m_enable_sampling = R"doc()doc";
-
 static const char *__doc_mitsuba_ConditionalIrregular1D_m_integral = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_m_max = R"doc()doc";
-
-static const char *__doc_mitsuba_ConditionalIrregular1D_m_nearest = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_m_nodes = R"doc()doc";
 
@@ -2495,7 +2505,15 @@ static const char *__doc_mitsuba_ConditionalIrregular1D_max = R"doc(Return the m
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_nodes = R"doc(Return the nodes of the underlying discretization)doc";
 
-static const char *__doc_mitsuba_ConditionalIrregular1D_nodes_2 = R"doc(Return the nodes of the underlying discretization (const version))doc";
+static const char *__doc_mitsuba_ConditionalIrregular1D_nodes_2 = R"doc()doc";
+
+static const char *__doc_mitsuba_ConditionalIrregular1D_nodes_cond = R"doc(Return the conditional nodes of the underlying discretization)doc";
+
+static const char *__doc_mitsuba_ConditionalIrregular1D_nodes_cond_2 = R"doc()doc";
+
+static const char *__doc_mitsuba_ConditionalIrregular1D_pdf = R"doc(Return the underlying tensor storing the distribution values)doc";
+
+static const char *__doc_mitsuba_ConditionalIrregular1D_pdf_2 = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalIrregular1D_sample_pdf =
 R"doc(Sample the distribution given a uniform sample ``u,`` conditioned on
@@ -2515,8 +2533,6 @@ Returns:
     second element the value of the normalized PDF at that position
     conditioned on ``cond``)doc";
 
-static const char *__doc_mitsuba_ConditionalIrregular1D_tensor = R"doc(Return the underlying tensor storing the distribution values)doc";
-
 static const char *__doc_mitsuba_ConditionalIrregular1D_update = R"doc(Update the internal state. Must be invoked when changing the pdf.)doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D =
@@ -2532,7 +2548,9 @@ interpolated value of the PDF for ``x`` given ``y`` and ``z.``
 Additionally, it allows you to sample from the distribution
 P(x|Y=y,Z=z) for a given ``y`` and ``z.``
 
-It assumes every conditioned PDF has the same size.
+It assumes every conditioned PDF has the same size. If the user
+requests a method that needs the integral, it will schedule its
+computation.
 
 This distribution can be used in the context of spectral rendering,
 where each wavelength conditions the underlying distribution.)doc";
@@ -2552,21 +2570,34 @@ Parameter ``range_cond``:
     Array of ranges where the dimensional conditionals are defined
 
 Parameter ``size_cond``:
-    Array with the size of each conditional dimension
+    Array with the size of each conditional dimension)doc";
 
-Parameter ``enable_sampling``:
-    Enable sampling of the distribution
+static const char *__doc_mitsuba_ConditionalRegular1D_ConditionalRegular1D_3 =
+R"doc(Construct a conditional regular 1D distribution
 
-Parameter ``nearest``:
-    If true, the sampling will return the nearest neighbor)doc";
+Parameter ``pdf``:
+    Tensor containing the values of the PDF of shape [D1, D2, ..., Dn,
+    N]
 
-static const char *__doc_mitsuba_ConditionalRegular1D_ConditionalRegular1D_3 = R"doc()doc";
+Parameter ``range``:
+    Range where the leading dimension N is defined
+
+Parameter ``range_cond``:
+    Array of ranges where the dimensional conditionals are defined)doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_ConditionalRegular1D_4 = R"doc()doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_cdf_array = R"doc(Return the cdf array of the distribution)doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_cdf_array_2 = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_compute_cdf = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_compute_cdf_scalar = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_empty = R"doc(Is the distribution object empty/uninitialized?)doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_ensure_cdf_computed = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_eval_pdf =
 R"doc(Evaluate the unnormalized probability density function (PDF) at
@@ -2596,6 +2627,10 @@ Parameter ``active``:
 
 static const char *__doc_mitsuba_ConditionalRegular1D_integral = R"doc(Return the integral of the distribution conditioned on ``cond``)doc";
 
+static const char *__doc_mitsuba_ConditionalRegular1D_integral_array = R"doc(Return the integral array of the distribution)doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_integral_array_2 = R"doc()doc";
+
 static const char *__doc_mitsuba_ConditionalRegular1D_lookup = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_lookup_fill = R"doc()doc";
@@ -2603,8 +2638,6 @@ static const char *__doc_mitsuba_ConditionalRegular1D_lookup_fill = R"doc()doc";
 static const char *__doc_mitsuba_ConditionalRegular1D_lookup_sample = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_m_cdf = R"doc()doc";
-
-static const char *__doc_mitsuba_ConditionalRegular1D_m_enable_sampling = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_m_integral = R"doc()doc";
 
@@ -2618,8 +2651,6 @@ static const char *__doc_mitsuba_ConditionalRegular1D_m_inv_interval_cond = R"do
 
 static const char *__doc_mitsuba_ConditionalRegular1D_m_max = R"doc()doc";
 
-static const char *__doc_mitsuba_ConditionalRegular1D_m_nearest = R"doc()doc";
-
 static const char *__doc_mitsuba_ConditionalRegular1D_m_pdf = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_m_range = R"doc()doc";
@@ -2632,9 +2663,21 @@ static const char *__doc_mitsuba_ConditionalRegular1D_m_size_nodes = R"doc()doc"
 
 static const char *__doc_mitsuba_ConditionalRegular1D_max = R"doc(Return the maximum value of the distribution)doc";
 
+static const char *__doc_mitsuba_ConditionalRegular1D_pdf = R"doc(Return the underlying tensor storing the distribution values)doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_pdf_2 = R"doc()doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_prepare_cdf = R"doc()doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_prepare_distribution = R"doc()doc";
+
 static const char *__doc_mitsuba_ConditionalRegular1D_range = R"doc(Return the range where the distribution is defined)doc";
 
-static const char *__doc_mitsuba_ConditionalRegular1D_resolution = R"doc(Return the resolution of the distribution)doc";
+static const char *__doc_mitsuba_ConditionalRegular1D_range_2 = R"doc()doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_range_cond = R"doc(Return the conditional range where the distribution is defined)doc";
+
+static const char *__doc_mitsuba_ConditionalRegular1D_range_cond_2 = R"doc()doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_sample_pdf =
 R"doc(Sample the distribution given a uniform sample ``u,`` conditioned on
@@ -2648,8 +2691,6 @@ Parameter ``cond``:
 
 Parameter ``active``:
     Mask of active lanes)doc";
-
-static const char *__doc_mitsuba_ConditionalRegular1D_tensor = R"doc(Return the underlying tensor storing the distribution values)doc";
 
 static const char *__doc_mitsuba_ConditionalRegular1D_update =
 R"doc(Update the internal state. Must be invoked when changing the
