@@ -118,11 +118,7 @@ public:
             BSDFContext ctx2(ctx);
             if (!sample_first)
                 ctx2.component -= (uint32_t) m_nested_bsdf[0]->component_count();
-            else
-                weight = 1.f - weight;
-            auto [bs, result] = m_nested_bsdf[sample_first ? 0 : 1]->sample(ctx2, si, sample1, sample2, active);
-            result *= weight;
-            return { bs, result };
+            return m_nested_bsdf[sample_first ? 0 : 1]->sample(ctx2, si, sample1, sample2, active);
         }
 
         BSDFSample3f bs = dr::zeros<BSDFSample3f>();
@@ -169,9 +165,7 @@ public:
             BSDFContext ctx2(ctx);
             if (!sample_first)
                 ctx2.component -= (uint32_t) m_nested_bsdf[0]->component_count();
-            else
-                weight = 1.f - weight;
-            return weight * m_nested_bsdf[sample_first ? 0 : 1]->eval(ctx2, si, wo, active);
+            return m_nested_bsdf[sample_first ? 0 : 1]->eval(ctx2, si, wo, active);
         }
 
         return m_nested_bsdf[0]->eval(ctx, si, wo, active) * (1 - weight) +
@@ -207,11 +201,7 @@ public:
             BSDFContext ctx2(ctx);
             if (!sample_first)
                 ctx2.component -= (uint32_t) m_nested_bsdf[0]->component_count();
-            else
-                weight = 1.f - weight;
-
-            auto [val, pdf] = m_nested_bsdf[sample_first ? 0 : 1]->eval_pdf(ctx2, si, wo, active);
-            return { weight * val, pdf };
+            return m_nested_bsdf[sample_first ? 0 : 1]->eval_pdf(ctx2, si, wo, active);
         }
 
         auto [val_0, pdf_0] = m_nested_bsdf[0]->eval_pdf(ctx, si, wo, active);
