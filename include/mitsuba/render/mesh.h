@@ -602,6 +602,8 @@ protected:
     bool m_face_normals = false;
     bool m_flip_normals = false;
 
+    bool m_scalar_dedge = true;
+
     /* Surface area distribution -- generated on demand when \ref
        prepare_area_pmf() is first called. */
     DiscreteDistribution<Float> m_area_pmf;

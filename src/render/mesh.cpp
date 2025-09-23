@@ -28,6 +28,7 @@ MI_VARIANT Mesh<Float, Spectrum>::Mesh(const Properties &props) : Base(props) {
        appearance. Default: ``false`` */
     m_face_normals = props.get<bool>("face_normals", false);
     m_flip_normals = props.get<bool>("flip_normals", false);
+    m_scalar_dedge = props.get<bool>("scalar_dedge", true);
 
     m_discontinuity_types = (uint32_t) DiscontinuityFlags::PerimeterType;
 
@@ -469,7 +470,7 @@ MI_VARIANT void Mesh<Float, Spectrum>::build_pmf() {
 
         m_area_pmf = DiscreteDistribution<Float>(table.data(), m_face_count);
     } else {
-        dr::scoped_disable_symbolic<Float> guard{};
+        dr::scoped_disable_symbolic<Float> guard;
 
         Vector3u v_idx = face_indices(dr::arange<UInt32>(m_face_count));
         Point3f p0 = vertex_position(v_idx[0]),
@@ -490,8 +491,7 @@ MI_VARIANT void Mesh<Float, Spectrum>::build_directed_edges() {
     if (m_face_count == 0)
         Throw("Cannot create directed edges for an empty mesh: %s", to_string());
 
-    //if constexpr (true) {
-    if constexpr (!dr::is_jit_v<Float>) {
+    if (!dr::is_jit_v<Float> || m_scalar_dedge) {
         auto&& faces = dr::migrate(m_faces, AllocType::Host);
         if constexpr (dr::is_array_v<Float>)
             dr::sync_thread();
@@ -532,6 +532,13 @@ MI_VARIANT void Mesh<Float, Spectrum>::build_directed_edges() {
                 }
             }
         }
+
+
+        std::cout << "tmp[0]: "<< std::endl;
+        for (int i = 0; i < tmp.size(); ++i) {
+            std::cout << "(" << tmp[i].first << ", " << tmp[i].second << "), ";
+        }
+        std::cout << "V2E: " << V2E << std::endl;
 
         // 2. Manifold check & assign `E2E`
         std::vector<bool> non_manifold(m_vertex_count, false);
@@ -582,15 +589,22 @@ MI_VARIANT void Mesh<Float, Spectrum>::build_directed_edges() {
                 "following mesh: %s",
                 non_manifold_count, to_string());
 
+
+        for (int i = 0; i < m_face_count * 3; ++i) {
+            std::cout << E2E.data()[i] << ", " << std::endl;
+        }
+
         m_E2E = dr::load<DynamicBuffer<UInt32>>(E2E.data(), m_face_count * 3);
-    } else {
-        //FIXME document v2e & tmp outside of `constexpr` 
+        std::cout << m_E2E << std::endl;
+    }
+    if constexpr (dr::is_jit_v<Float>) {
+        if (!m_scalar_dedge) {
+        //FIXME document v2e & tmp outside of `constexpr`
         UInt32 V2E = dr::full<UInt32>(INVALID_DEDGE, m_vertex_count);
-        m_E2E = dr::zeros<UInt32>(m_face_count * 3);
 
         /* For an edge e1 = (v1, v2), tmp is defined as:
-              tmp[e1].first  = v2,
-              tmp[e1].second = (next edge e_k that also starts from v1) or INVALID_DEDGE
+              tmp[0][e1] = v2,
+              tmp[1][e1] = (next edge e_k that also starts from v1) or INVALID_DEDGE
         */
         Vector2u tmp = dr::zeros<Vector2u>(m_face_count * 3);
 
@@ -602,37 +616,93 @@ MI_VARIANT void Mesh<Float, Spectrum>::build_directed_edges() {
         Bool invalid_edges = (v1 == v2);
         UInt32 edge_id = dr::arange<UInt32>(m_face_count * 3);
 
-        tmp[0] = v2_idx;
-        tmp[1] = dr::full<UInt32>(INVALID_DEDGE, dr::width(v2_idx));
+        tmp[0] = v2;
+        tmp[1] = dr::full<UInt32>(INVALID_DEDGE, dr::width(v2));
+        dr::make_opaque(tmp);
 
-        //if (!atomicCompareAndExchange(&V2E[idx_cur], edge_id, INVALID)) {
-        auto [_, swapped] = dr::scatter_cas(V2E, UInt32(INVALID_DEDGE), edge_id,
-                                            v1, !invalid_edges);
-        UInt32 next_edge_id = dr::gather<UInt32>(V2E, v1, !swapped);
+        auto [old, swapped] =
+            dr::scatter_cas(V2E, UInt32(INVALID_DEDGE), edge_id, v1, !invalid_edges);
 
-        //struct LoopState {
-        //    UInt32 next_edge_id;
-        //    Mask active;
-        //    DRJIT_STRUCT(LoopState, next_edge_id, active)
-        //};
-        //LoopState ls{ next_edge_id, swapped };
+        struct LoopState {
+            UInt32 next_edge_id; // Used for tmp[1]
+            Mask active;
+            DRJIT_STRUCT(LoopState, next_edge_id, active)
+        };
+        LoopState ls{ old, !swapped & !invalid_edges };
+        dr::tie(ls) = dr::while_loop(
+            dr::make_tuple(ls),
+            [](const LoopState &ls) { return ls.active; },
+            [&tmp, &edge_id](LoopState &ls) {
+                auto [old, swapped] =
+                    dr::scatter_cas(tmp[1], UInt32(INVALID_DEDGE), edge_id, ls.next_edge_id);
+                ls.next_edge_id = old;
+                ls.active &= !swapped & !ls.active;
+            }
+        );
 
-        //dr::tie(ls) = dr::while_loop(
-        //    dr::make_tuple(ls),
-        //    [](const LoopState &ls) { return ls.active; },
-        //    [](LoopState &ls) {
-        //        UInt32 last_edges_id = dr::gather<UInt32>(tmp[1], last_edges_id);
-        //        UInt32 prev_e_k = dr::scatter_cas(tmp[1], UInt32(INVALID_DEDGE), edge_id, dr::arange<UInt32>(m_vertex_count), !invalid_edges);
-        //        Bool last_e_k = (prev_e_k == INVALID_DEDGE);
-        //    }
-        //);
+        dr::eval(tmp[0], tmp[1], V2E); // FIXME: Necessary ??
+        std::cout << "tmp[0]: " << tmp[0] << std::endl;
+        std::cout << "tmp[1]: " << tmp[1] << std::endl;
+        std::cout << "V2E: " << V2E << std::endl;
 
-        //if (!atomicCompareAndExchange(&V2E[idx_cur], edge_id, INVALID)) {
-        //    uint32_t idx = V2E[idx_cur];
-        //    while (!atomicCompareAndExchange(&tmp[idx].second, edge_id, INVALID))
-        //        idx = tmp[idx].second;
-        //}
+        // 2. Manifold check & assign `E2E`
+        UInt32 it = dr::gather<UInt32>(V2E, v2);
+        UInt32 edge_id_opp = INVALID_DEDGE;
+        Bool non_manifold = dr::full<Bool>(false, m_vertex_count);
+        //dr::scoped_set_flag scope(JitFlag::SymbolicLoops, false);
+        struct LoopState2 {
+            UInt32 it;
+            UInt32 edge_id_opp;
+            Mask active;
+            DRJIT_STRUCT(LoopState2, it, edge_id_opp, active)
+        };
+        LoopState2 ls2{ it, edge_id_opp, !invalid_edges };
+        dr::tie(ls2) = dr::while_loop(
+            dr::make_tuple(ls2),
+            [](const LoopState2 &ls) { return ls.active; },
+            [&tmp, &v1, &v2, &non_manifold](LoopState2 &ls) {
+                Bool found_edge = (dr::gather<UInt32>(tmp[0], ls.it) == v1);
+                Bool invalid_opp = (ls.edge_id_opp == INVALID_DEDGE);
 
+                // Set opposite edge
+                ls.edge_id_opp[found_edge & invalid_opp] = ls.it;
+
+                // Opposite edge was already set, must be non-manifold
+                dr::scatter<Bool>(non_manifold, Bool(true), v1, found_edge & !invalid_opp);
+                dr::scatter<Bool>(non_manifold, Bool(true), v2, found_edge & !invalid_opp);
+                ls.active[found_edge &! invalid_opp] &= false;
+
+                // Move to next edge of vertex
+                ls.it[!found_edge & ls.active] = dr::gather<UInt32>(tmp[1], ls.it);
+
+                ls.active &= (ls.it != INVALID_DEDGE);
+
+                //std::cout << "active after : " << ls.active << std::endl;
+                //std::cout << "edge_id_opp: " << ls.edge_id_opp<< std::endl;
+                //std::cout << "active after : " << ls.active << std::endl;
+            }
+        );
+        //std::cout << "ls.edge_id_opp: " << ls2.edge_id_opp<< std::endl;
+        edge_id_opp = ls2.edge_id_opp;
+        dr::eval(edge_id_opp); // FIXME: Necessary ??
+
+        Bool success = (edge_id_opp != INVALID_DEDGE) & (edge_id < edge_id_opp);
+        m_E2E = dr::full<UInt32>(INVALID_DEDGE, m_face_count * 3);
+        dr::scatter<UInt32>(m_E2E, edge_id_opp, edge_id, success);
+        dr::scatter<UInt32>(m_E2E, edge_id, edge_id_opp, success);
+
+        //std::cout << "dr::any(success): " << dr::any(success) << std::endl;
+        UInt32 tmp_host = UInt32(m_E2E);
+        auto&& data = dr::migrate(tmp_host, AllocType::Host);
+        if constexpr (dr::is_jit_v<Float>)
+            dr::sync_thread();
+        const ScalarIndex *E2E_data = data.data();
+        for (int i = 0; i < dr::width(m_E2E); ++i) {
+            std::cout << E2E_data[i] << ", " << std::endl;
+        }
+
+
+        }
     }
 
     m_E2E_outdated = false;
