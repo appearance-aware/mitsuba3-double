@@ -8,13 +8,13 @@ on:
         default: '0'
 
 env:
-  VARIANTS: "scalar_rgb,scalar_spectral,scalar_spectral_polarized,llvm_ad_rgb,llvm_ad_mono,llvm_ad_mono_polarized,llvm_ad_spectral,llvm_ad_spectral_polarized,cuda_ad_rgb,cuda_ad_mono,cuda_ad_mono_polarized,cuda_ad_spectral,cuda_ad_spectral_polarized"
+  VARIANTS: "scalar_rgb_double,scalar_spectral_double,scalar_spectral_polarized_double,llvm_ad_rgb_double,llvm_ad_mono_double,llvm_ad_mono_polarized_double,llvm_ad_spectral_double,llvm_ad_spectral_polarized_double,cuda_ad_rgb_double,cuda_ad_mono_double,cuda_ad_mono_polarized_double,cuda_ad_spectral_double,cuda_ad_spectral_polarized_double"
 
 jobs:
   build_wheels:
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-latest, macos-14]
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
         python: [cp39, cp310, cp311, cp312, cp312_stable, cp313, cp314]
       fail-fast: false
 
