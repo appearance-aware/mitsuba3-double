@@ -8,7 +8,7 @@ on:
         default: '0'
 
 env:
-  VARIANTS: "scalar_rgb_double,scalar_spectral_double,scalar_spectral_polarized_double,llvm_ad_rgb_double,llvm_ad_mono_double,llvm_ad_mono_polarized_double,llvm_ad_spectral_double,llvm_ad_spectral_polarized_double,cuda_ad_rgb_double,cuda_ad_mono_double,cuda_ad_mono_polarized_double,cuda_ad_spectral_double,cuda_ad_spectral_polarized_double"
+  VARIANTS: "scalar_rgb,scalar_spectral,scalar_spectral_polarized,llvm_ad_rgb,llvm_ad_mono,llvm_ad_mono_polarized,llvm_ad_spectral,llvm_ad_spectral_polarized,cuda_ad_rgb_double,cuda_ad_mono_double,cuda_ad_mono_polarized_double,cuda_ad_spectral_double,cuda_ad_spectral_polarized_double"
 
 jobs:
   build_wheels:
